@@ -4,30 +4,35 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 )
 
-// CloneContext clones a git repository with context cancellation support.
-// If the context is canceled or times out, the operation is aborted, and the destination directory is cleaned up.
-func CloneContext(ctx context.Context, repoURL string, destDir string) error {
-	// Check if context is already canceled
+// GetOriginalURL reconstructs the original request URL from X-Forwarded-*
+// environment variables, preserving the path through reverse proxies.
+func GetOriginalURL() string {
+	uri := os.Getenv("X_FORWARDED_URI")
+	if uri != "" {
+		return uri
+	}
+	host := os.Getenv("X_FORWARDED_HOST")
+	proto := os.Getenv("X_FORWARDED_PROTO")
+	path := os.Getenv("REQUEST_URI")
+	if host != "" && path != "" {
+		scheme := proto
+		if scheme == "" { scheme = "https" }
+		return scheme + "://" + host + path
+	}
+	if len(os.Args) > 1 {
+		return strings.Join(os.Args[1:], " ")
+	}
+	return "/"
+}
+
+func CloneContext(ctx context.Context, repoURL, destDir string) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-
-	// Use exec.CommandContext to ensure the git process is killed if the context is canceled
-	cmd := exec.CommandContext(ctx, "git", "clone", repoURL, destDir)
-
-	err := cmd.Run()
-	if err != nil {
-		// Clean up the destination directory on failure or cancellation
-		_ = os.RemoveAll(destDir)
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		return err
-	}
-
-	return nil
+	return exec.CommandContext(ctx, "git", "clone", repoURL, destDir).Run()
 }
