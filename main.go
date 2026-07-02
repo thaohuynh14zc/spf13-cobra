@@ -1,7 +1,10 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func main() {
-	fmt.Println("Hello, Bounty Hunter!")
+	originalURL := cobra.GetOriginalURL()
+	fmt.Printf("Hello, Bounty Hunter! Original URL: %s\n", originalURL)
 }
